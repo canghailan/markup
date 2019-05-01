@@ -106,7 +106,7 @@ public class Markup implements AutoCloseable {
 
     public void index(Markdown markdown) throws IOException {
         log.debug("index {}", markdown.getKey());
-        writer.addDocument(fromMarkdown(markdown));
+        writer.updateDocument(new Term(KEY, markdown.getKey()), fromMarkdown(markdown));
     }
 
     public synchronized void commit() throws IOException {
@@ -217,10 +217,18 @@ public class Markup implements AutoCloseable {
     }
 
     protected Query buildSearchQuery(String prefix, String keyword) {
-        Query keyQuery = (prefix == null || prefix.isEmpty()) ? null :
-                new PrefixQuery(new Term(KEY, prefix));
-        Query valueQuery = (keyword == null || keyword.isEmpty()) ? null :
-                new FuzzyQuery(new Term(CONTENT, keyword));
+        Query keyQuery = null;
+        Query valueQuery = null;
+        if (prefix != null && !prefix.isEmpty()) {
+            keyQuery = new PrefixQuery(new Term(KEY, prefix));
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            if (keyword.length() <= 4) {
+                valueQuery = new TermQuery(new Term(CONTENT, keyword));
+            } else {
+                valueQuery = new FuzzyQuery(new Term(CONTENT, keyword));
+            }
+        }
         if (keyQuery != null && valueQuery != null) {
             return new BooleanQuery.Builder()
                     .add(keyQuery, BooleanClause.Occur.FILTER)
