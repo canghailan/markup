@@ -199,7 +199,7 @@ public class Markup implements AutoCloseable {
 
             ScoreDoc[] scoreDocs = searcher.search(q, nc.getOffset(), Sort.RELEVANCE).scoreDocs;
             LinkedList<Markdown> list = new LinkedList<>();
-            for (int i = scoreDocs.length - 1; i >= scoreDocs.length - c.getCount(); i--) {
+            for (int i = scoreDocs.length - 1; i >= Integer.max(scoreDocs.length - c.getCount(), 0); i--) {
                 Document document = searcher.doc(scoreDocs[i].doc);
                 String key = document.get(KEY);
                 if (key.equals(c.getKey())) {
