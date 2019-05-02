@@ -1,18 +1,20 @@
-# Markup - 小型Markdown文档服务器
+# Markup - 微型Markdown文档服务器
 
-所有文档都缓存在内存中，针对小规模文档（博客、接口文档）场景优化
+所有文档都缓存在内存中，针对少量文档（博客、接口文档）场景优化
 
 # 目录结构
-对目录结构没有特殊要求，.开头文档无法访问，首页index.html需自行定制
+对目录结构没有特殊要求，.开头文档无法通过HTTP访问，首页index.html可自行定制
 ```shell
-markup.jar
-markup.yml
-[repo]
+markup.jar # 单一执行文件
+markup.yml # 配置文件
+[repo] # Git文档库
 .git
 index.html
 [DIRECTORY]
-  [MARKDOWN].md
-[MARKDOWN].md 
+    *.md
+    *.jpg
+*.md 
+...
 ```
 
 # 接口
@@ -23,15 +25,18 @@ GET /
 ```http
 GET /index.html
 ```
+
 ## 文件
 与版本库文件路径一致
 ```http
-GET /**/*.md
+GET /**/*.*
 ```
+
 ## 文件目录（Table Of Content）
 ```http
 GET /.toc
 ```
+
 ## 全文搜索
 搜索参数：
 * p 目录
@@ -68,9 +73,9 @@ GET /.updater
 
 
 # 依赖
-* jgit 从远程Git仓库读取文件
-* commonmark 将Markdown转为HTML
-* Lucene 文档存储、搜索
-* HanLP 中文分词、拼音
-* Jackson 配置文件、接口数据
-* Netty HTTP服务器
+* jgit - 从远程Git仓库读取文件
+* commonmark - 将Markdown转为HTML
+* Lucene - 文档存储、搜索
+* HanLP - 中文分词、拼音
+* Jackson - 配置文件、接口数据
+* Netty - HTTP服务器
