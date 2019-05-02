@@ -109,10 +109,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
 
         long contentLength = Files.size(file);
-        CharSequence contentType = Files.probeContentType(file);
-        if (contentType == null && path.endsWith(".md")) {
-            contentType = TEXT_MARKDOWN;
-        }
+        CharSequence contentType = probeContentType(file);
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
         response.headers().set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
         response.headers().set(HttpHeaderNames.CONTENT_LENGTH, contentLength);
@@ -197,6 +194,16 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     private boolean isNotModified(FullHttpRequest request, long lastModified) {
         return request.headers().getTimeMillis(HttpHeaderNames.IF_MODIFIED_SINCE, 0) / 1000 ==
                 lastModified / 1000;
+    }
+
+    private CharSequence probeContentType(Path file) throws IOException {
+        String contentType = Files.probeContentType(file);
+        if (contentType == null ) {
+            if (file.toString().endsWith(".md")) {
+                return TEXT_MARKDOWN;
+            }
+        }
+        return contentType;
     }
 
     private Optional<String> getFirst(Map<String, List<String>> parameters, String key) {

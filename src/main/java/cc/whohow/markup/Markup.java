@@ -209,7 +209,7 @@ public class Markup implements AutoCloseable {
             keyQuery = new PrefixQuery(new Term(KEY, prefix));
         }
         if (keyword != null && !keyword.isEmpty()) {
-            if (keyword.length() <= 4) {
+            if (keyword.length() <= 2) {
                 valueQuery = new TermQuery(new Term(CONTENT, keyword));
             } else {
                 valueQuery = new FuzzyQuery(new Term(CONTENT, keyword));

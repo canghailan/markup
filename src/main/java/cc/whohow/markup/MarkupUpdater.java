@@ -57,6 +57,7 @@ public class MarkupUpdater implements Runnable, AutoCloseable {
         Set<String> remove = new HashSet<>(markup.list());
         remove.removeAll(markup.listGitRepo());
         markup.delete(remove);
+        markup.commit();
     }
 
     @Override
