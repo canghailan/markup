@@ -3,6 +3,7 @@ package cc.whohow.markup.impl;
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.lucene.HanLPTokenizer;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 
@@ -15,6 +16,7 @@ public class CustomHanLPAnalyzer extends Analyzer {
     private Set<String> filter;
     private boolean enablePorterStemming;
     private List<Function<TokenStream, TokenStream>> filters = Arrays.asList(
+            LowerCaseFilter::new,
             HanLPPinyinTokenFilter::new
     );
 
