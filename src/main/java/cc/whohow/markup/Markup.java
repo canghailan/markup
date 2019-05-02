@@ -1,7 +1,6 @@
 package cc.whohow.markup;
 
 import cc.whohow.markup.impl.*;
-import com.hankcs.lucene.HanLPIndexAnalyzer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
@@ -82,7 +81,7 @@ public class Markup implements AutoCloseable {
             repo = Paths.get(getGitRepoName());
             // lucene
             index = new ByteBuffersDirectory();
-            analyzer = new HanLPIndexAnalyzer();
+            analyzer = new CustomHanLPAnalyzer();
             writer = new IndexWriter(index, new IndexWriterConfig(analyzer));
             writer.commit();
             searcher = new IndexSearcher(DirectoryReader.open(index));
