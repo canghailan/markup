@@ -23,10 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @ChannelHandler.Sharable
 public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
@@ -36,6 +33,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     private static final CharSequence CACHE_CONTROL_VALUE = new AsciiString("no-cache,max-age=86400,must-revalidate");
     private static final String SEARCH = "/.s";
     private static final String TABLE_OF_CONTENT = "/.toc";
+    private static final String UPDATE = "/.updater";
 
     static {
         OBJECT_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -62,15 +60,31 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
 
         try {
             QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
-            if (decoder.path() == null || decoder.path().equals("/")) {
-                send(context, request, "/index.html");
-            } else if (decoder.path().equals(TABLE_OF_CONTENT)) {
-                toc(context);
-            } else if (decoder.path().equals(SEARCH)) {
-                search(context, decoder);
-            } else {
-                send(context, request, decoder.path());
+            String path = decoder.path();
+            if (path == null || path.equals("/")) {
+                path = "/index.html";
             }
+            if (path.startsWith("/.")) {
+                switch (path) {
+                    case TABLE_OF_CONTENT: {
+                        toc(context);
+                        return;
+                    }
+                    case SEARCH: {
+                        search(context, decoder.parameters());
+                        return;
+                    }
+                    case UPDATE: {
+                        update(context);
+                        return;
+                    }
+                    default: {
+                        send(context, HttpResponseStatus.NOT_FOUND);
+                        return;
+                    }
+                }
+            }
+            send(context, request, path);
         } catch (NoSuchFileException | FileNotFoundException e) {
             log.error("NotFound", e);
             send(context, HttpResponseStatus.NOT_FOUND);
@@ -78,31 +92,6 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
             log.error("Error", e);
             send(context, HttpResponseStatus.INTERNAL_SERVER_ERROR);
         }
-    }
-
-    private boolean isBadRequest(FullHttpRequest request) {
-        return !request.decoderResult().isSuccess();
-    }
-
-    private boolean isMethodNotAllowed(FullHttpRequest request) {
-        return !HttpMethod.GET.equals(request.method());
-    }
-
-    private boolean isNotModified(FullHttpRequest request, long lastModified) {
-        return request.headers().getTimeMillis(HttpHeaderNames.IF_MODIFIED_SINCE, 0) / 1000 ==
-                lastModified / 1000;
-    }
-
-    private String getFirst(QueryStringDecoder decoder, String key) {
-        return getFirst(decoder, key, null);
-    }
-
-    private String getFirst(QueryStringDecoder decoder, String key, String defaultValue) {
-        List<String> values = decoder.parameters().get(key);
-        if (values == null || values.isEmpty()) {
-            return defaultValue;
-        }
-        return values.get(0);
     }
 
     private void send(ChannelHandlerContext context, HttpResponseStatus status) {
@@ -151,14 +140,14 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
 
-    private void search(ChannelHandlerContext context, QueryStringDecoder decoder) throws Exception {
+    private void search(ChannelHandlerContext context, Map<String, List<String>> parameters) throws Exception {
         SearchCursor searchCursor;
-        String cursor = getFirst(decoder, "c");
+        String cursor = getFirst(parameters, "c").orElse(null);
         if (cursor == null || cursor.isEmpty()) {
             searchCursor = new SearchCursor();
-            searchCursor.setPrefix(getFirst(decoder, "p"));
-            searchCursor.setKeyword(getFirst(decoder, "q"));
-            searchCursor.setCount(Integer.parseInt(getFirst(decoder, "n", "10")));
+            searchCursor.setPrefix(getFirst(parameters, "p").orElse(null));
+            searchCursor.setKeyword(getFirst(parameters, "q").orElse(null));
+            searchCursor.setCount(getFirst(parameters, "n").map(Integer::parseInt).orElse(10));
         } else {
             searchCursor = new SearchCursor(cursor);
         }
@@ -174,5 +163,47 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         context.write(response);
         context.write(Unpooled.wrappedBuffer(bytes));
         context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+    }
+
+    private void update(ChannelHandlerContext context) throws IOException {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            markup.update();
+            result.put("ok", true);
+        } catch (Exception e) {
+            result.put("ok", false);
+        }
+        result.put("timestamp", new Date());
+        byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(result);
+
+        HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+        response.headers().set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
+        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, bytes.length);
+        response.headers().set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
+        response.headers().set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
+        context.write(response);
+        context.write(Unpooled.wrappedBuffer(bytes));
+        context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+    }
+
+    private boolean isBadRequest(FullHttpRequest request) {
+        return !request.decoderResult().isSuccess();
+    }
+
+    private boolean isMethodNotAllowed(FullHttpRequest request) {
+        return !HttpMethod.GET.equals(request.method());
+    }
+
+    private boolean isNotModified(FullHttpRequest request, long lastModified) {
+        return request.headers().getTimeMillis(HttpHeaderNames.IF_MODIFIED_SINCE, 0) / 1000 ==
+                lastModified / 1000;
+    }
+
+    private Optional<String> getFirst(Map<String, List<String>> parameters, String key) {
+        List<String> values = parameters.get(key);
+        if (values == null || values.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(values.get(0));
     }
 }

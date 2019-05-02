@@ -4,6 +4,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.revwalk.RevCommit;
 
+import java.lang.reflect.UndeclaredThrowableException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 public class MarkupUpdater implements Runnable, AutoCloseable {
@@ -23,12 +26,17 @@ public class MarkupUpdater implements Runnable, AutoCloseable {
     public void run() {
         try {
             update();
+        } catch (RuntimeException e) {
+            log.error("update", e);
+            throw e;
         } catch (Exception e) {
             log.error("update", e);
+            throw new UndeclaredThrowableException(e);
         }
     }
 
     private void update() throws Exception {
+        // TODO 并发更新
         int updated = 0;
         markup.gitUpdate();
         RevCommit head = markup.gitHead();
@@ -45,6 +53,10 @@ public class MarkupUpdater implements Runnable, AutoCloseable {
             markup.commit();
         }
         committed = head;
+
+        Set<String> remove = new HashSet<>(markup.list());
+        remove.removeAll(markup.listGitRepo());
+        markup.delete(remove);
     }
 
     @Override

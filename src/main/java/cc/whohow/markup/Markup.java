@@ -8,13 +8,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.document.*;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.parser.Parser;
@@ -49,7 +47,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Markup implements AutoCloseable {
     private static final Logger log = LogManager.getLogger();
@@ -57,6 +54,7 @@ public class Markup implements AutoCloseable {
     private static final String CONTENT = "content";
     private static final String HTML = "html";
     private static final String CREATED = "created";
+    private static final Sort SORT_BY_CREATED = new Sort(new SortField(CREATED, SortField.Type.LONG, true));
 
     // executor
     private final ScheduledExecutorService executor;
@@ -74,7 +72,6 @@ public class Markup implements AutoCloseable {
     private final MarkupUpdater updater;
     //
     private volatile Git git;
-    private volatile NavigableSet<String> keys;
     private volatile IndexSearcher searcher;
 
     public Markup(MarkupConfiguration configuration) {
@@ -85,10 +82,10 @@ public class Markup implements AutoCloseable {
             // lucene
             index = new ByteBuffersDirectory();
             analyzer = CustomAnalyzer.builder()
-                .withTokenizer(HanLPTokenizerFactory.class)
-                .addTokenFilter(LowerCaseFilterFactory.class)
-                .addTokenFilter(HanLPPinyinTokenFilterFactory.class)
-                .build();
+                    .withTokenizer(HanLPTokenizerFactory.class)
+                    .addTokenFilter(LowerCaseFilterFactory.class)
+                    .addTokenFilter(HanLPPinyinTokenFilterFactory.class)
+                    .build();
             writer = new IndexWriter(index, new IndexWriterConfig(analyzer));
             writer.commit();
             searcher = new IndexSearcher(DirectoryReader.open(index));
@@ -111,8 +108,21 @@ public class Markup implements AutoCloseable {
     }
 
     public void index(Markdown markdown) throws IOException {
+        if (markdown == null) {
+            return;
+        }
         log.debug("index {}", markdown.getKey());
         writer.updateDocument(new Term(KEY, markdown.getKey()), fromMarkdown(markdown));
+    }
+
+    public void delete(Collection<String> keys) throws IOException {
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        Term[] terms = keys.stream()
+                .map(key -> new Term(KEY, key))
+                .toArray(Term[]::new);
+        writer.deleteDocuments(terms);
     }
 
     public synchronized void commit() throws IOException {
@@ -129,20 +139,21 @@ public class Markup implements AutoCloseable {
     }
 
     public Collection<String> list() throws IOException {
-        return Collections.unmodifiableCollection(keys);
-    }
-
-    public Collection<String> list(String prefix, String key, int n) throws IOException {
-        Stream<String> stream;
-        if (key == null || key.isEmpty()) {
-            stream = keys.stream();
-        } else {
-            stream = keys.tailSet(key, false).stream();
+        IndexSearcher searcher = this.searcher;
+        IndexReader reader = searcher.getIndexReader();
+        SortedSet<String> keys = new TreeSet<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            LeafReader leafReader = leaf.reader();
+            SortedDocValues docValues = DocValues.getSorted(leafReader, KEY);
+            while (true) {
+                int doc = docValues.nextDoc();
+                if (doc == SortedDocValues.NO_MORE_DOCS) {
+                    break;
+                }
+                keys.add(docValues.binaryValue().utf8ToString());
+            }
         }
-        if (prefix != null && !prefix.isEmpty()) {
-            stream = stream.filter(new PrefixFilter(prefix));
-        }
-        return stream.limit(n).collect(Collectors.toList());
+        return keys;
     }
 
     public Markdown get(String key) throws IOException {
@@ -159,30 +170,9 @@ public class Markup implements AutoCloseable {
                 toMarkdown(searcher.doc(scoreDocs[0].doc));
     }
 
-    public List<Markdown> get(String... keys) throws IOException {
-        return get(Arrays.asList(keys));
-    }
-
-    public List<Markdown> get(Iterable<String> keys) throws IOException {
-        IndexSearcher searcher = this.searcher;
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        int n = 0;
-        for (String key : keys) {
-            builder.add(new TermQuery(new Term(KEY, key)), BooleanClause.Occur.SHOULD);
-            n++;
-        }
-        if (n == 0) {
-            return Collections.emptyList();
-        }
-        ScoreDoc[] scoreDocs = searcher.search(builder.build(), n).scoreDocs;
-        List<Markdown> list = new ArrayList<>(scoreDocs.length);
-        for (ScoreDoc scoreDoc : scoreDocs) {
-            list.add(toMarkdown(searcher.doc(scoreDoc.doc)));
-        }
-        return list;
-    }
-
     public SearchResult<Markdown> search(SearchCursor c) throws IOException {
+        IndexSearcher searcher = this.searcher;
+
         SearchCursor nc = new SearchCursor();
         nc.setPrefix(c.getPrefix());
         nc.setKeyword(c.getKeyword());
@@ -190,36 +180,26 @@ public class Markup implements AutoCloseable {
         nc.setOffset(c.getOffset() + c.getCount());
 
         SearchResult<Markdown> r = new SearchResult<>();
-        if (c.getKeyword() == null || c.getKeyword().isEmpty()) {
-            List<Markdown> list = get(list(c.getPrefix(), c.getKey(), c.getCount()));
-            r.setList(list);
-            if (!list.isEmpty()) {
-                nc.setKey(list.get(list.size() - 1).getKey());
-                r.setCursor(nc.toString());
-            }
-            return r;
-        } else {
-            IndexSearcher searcher = this.searcher;
-            Query q = buildSearchQuery(c.getPrefix(), c.getKeyword());
-            log.debug("query {} {} {}", q, c.getKey(), c.getCount());
+        Query q = buildSearchQuery(c.getPrefix(), c.getKeyword());
+        Sort s = buildSearchSort(c.getPrefix(), c.getKeyword());
+        log.debug("query {} {} {}", q, c.getKey(), c.getCount());
 
-            ScoreDoc[] scoreDocs = searcher.search(q, nc.getOffset(), Sort.RELEVANCE).scoreDocs;
-            LinkedList<Markdown> list = new LinkedList<>();
-            for (int i = scoreDocs.length - 1; i >= Integer.max(scoreDocs.length - c.getCount(), 0); i--) {
-                Document document = searcher.doc(scoreDocs[i].doc);
-                String key = document.get(KEY);
-                if (key.equals(c.getKey())) {
-                    break;
-                }
-                list.addFirst(toMarkdown(document));
+        ScoreDoc[] scoreDocs = searcher.search(q, nc.getOffset(), s).scoreDocs;
+        LinkedList<Markdown> list = new LinkedList<>();
+        for (int i = scoreDocs.length - 1; i >= Integer.max(scoreDocs.length - c.getCount(), 0); i--) {
+            Document document = searcher.doc(scoreDocs[i].doc);
+            String key = document.get(KEY);
+            if (key.equals(c.getKey())) {
+                break;
             }
-            r.setList(list);
-            if (!list.isEmpty()) {
-                nc.setKey(list.getLast().getKey());
-                r.setCursor(nc.toString());
-            }
-            return r;
+            list.addFirst(toMarkdown(document));
         }
+        r.setList(list);
+        if (!list.isEmpty()) {
+            nc.setKey(list.getLast().getKey());
+            r.setCursor(nc.toString());
+        }
+        return r;
     }
 
     protected Query buildSearchQuery(String prefix, String keyword) {
@@ -250,12 +230,12 @@ public class Markup implements AutoCloseable {
         return new MatchAllDocsQuery();
     }
 
-    public String getNextCursor(List<Markdown> list) {
-        if (list == null || list.isEmpty()) {
-            return null;
+    protected Sort buildSearchSort(String prefix, String keyword) {
+        if (keyword == null || keyword.isEmpty()) {
+            return SORT_BY_CREATED;
+        } else {
+            return Sort.RELEVANCE;
         }
-        String key = list.get(list.size() - 1).getKey();
-        return Base64.getUrlEncoder().encodeToString(key.getBytes(StandardCharsets.UTF_8));
     }
 
     public Path resolve(String path) {
@@ -293,7 +273,6 @@ public class Markup implements AutoCloseable {
         } else {
             gitPull();
         }
-        keys = listGitRepo();
     }
 
     private void gitClone() throws Exception {
@@ -431,6 +410,8 @@ public class Markup implements AutoCloseable {
         document.add(new TextField(CONTENT, markdown.getContent(), Field.Store.YES));
         document.add(new StoredField(HTML, markdown.getHtml()));
         document.add(new StringField(CREATED, DateTools.dateToString(markdown.getCreated(), DateTools.Resolution.SECOND), Field.Store.YES));
+        document.add(new SortedDocValuesField(KEY, new BytesRef(markdown.getKey())));
+        document.add(new NumericDocValuesField(CREATED, markdown.getCreated().getTime()));
         return document;
     }
 
