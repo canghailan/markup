@@ -1,9 +1,12 @@
 package cc.whohow.markup;
 
 import cc.whohow.markup.impl.*;
+import com.hankcs.lucene.HanLPTokenizerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -81,7 +84,11 @@ public class Markup implements AutoCloseable {
             repo = Paths.get(getGitRepoName());
             // lucene
             index = new ByteBuffersDirectory();
-            analyzer = new CustomHanLPAnalyzer();
+            analyzer = CustomAnalyzer.builder()
+                .withTokenizer(HanLPTokenizerFactory.class)
+                .addTokenFilter(LowerCaseFilterFactory.class)
+                .addTokenFilter(HanLPPinyinTokenFilterFactory.class)
+                .build();
             writer = new IndexWriter(index, new IndexWriterConfig(analyzer));
             writer.commit();
             searcher = new IndexSearcher(DirectoryReader.open(index));

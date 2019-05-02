@@ -17,8 +17,10 @@ public class ShutdownRunnable implements Runnable {
 
     public static void shutdown(ExecutorService executor) {
         try {
-            executor.shutdownNow();
-            executor.awaitTermination(3, TimeUnit.SECONDS);
+            if (executor != null) {
+                executor.shutdownNow();
+                executor.awaitTermination(3, TimeUnit.SECONDS);
+            }
         } catch (Throwable e) {
             log.error("close", e);
         }
