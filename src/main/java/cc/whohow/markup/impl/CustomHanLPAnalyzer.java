@@ -15,7 +15,7 @@ import java.util.function.Function;
 public class CustomHanLPAnalyzer extends Analyzer {
     private Set<String> filter;
     private boolean enablePorterStemming;
-    private List<Function<TokenStream, TokenStream>> filters = Arrays.asList(
+    private List<Function<TokenStream, ? extends TokenStream>> filters = Arrays.asList(
             LowerCaseFilter::new,
             HanLPPinyinTokenFilter::new
     );
@@ -37,7 +37,7 @@ public class CustomHanLPAnalyzer extends Analyzer {
     protected TokenStreamComponents createComponents(String fieldName) {
         Tokenizer tokenizer = new HanLPTokenizer(HanLP.newSegment().enableIndexMode(true), filter, enablePorterStemming);
         TokenStream tokenStream = tokenizer;
-        for (Function<TokenStream, TokenStream> filter : filters) {
+        for (Function<TokenStream, ? extends TokenStream> filter : filters) {
             tokenStream = filter.apply(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
