@@ -5,8 +5,10 @@ import com.hankcs.lucene.HanLPTokenizerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
@@ -202,32 +204,32 @@ public class Markup implements AutoCloseable {
         return r;
     }
 
-    protected Query buildSearchQuery(String prefix, String keyword) {
-        Query keyQuery = null;
-        Query valueQuery = null;
+    protected Query buildSearchQuery(String prefix, String keyword) throws IOException {
+        int n = 0;
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
         if (prefix != null && !prefix.isEmpty()) {
-            keyQuery = new PrefixQuery(new Term(KEY, prefix));
+            builder.add(new PrefixQuery(new Term(KEY, prefix)), BooleanClause.Occur.FILTER);
+            n++;
         }
         if (keyword != null && !keyword.isEmpty()) {
-            if (keyword.length() <= 2) {
-                valueQuery = new TermQuery(new Term(CONTENT, keyword));
-            } else {
-                valueQuery = new FuzzyQuery(new Term(CONTENT, keyword));
+            try (TokenStream tokenStream = analyzer.tokenStream(CONTENT, keyword)) {
+                CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+                tokenStream.reset();
+                while (tokenStream.incrementToken()) {
+                    String term = charTermAttribute.toString();
+                    if (term.length() > FuzzyQuery.defaultMaxEdits) {
+                        builder.add(new FuzzyQuery(new Term(CONTENT, term)), BooleanClause.Occur.MUST);
+                    } else {
+                        builder.add(new TermQuery(new Term(CONTENT, term)), BooleanClause.Occur.MUST);
+                    }
+                    n++;
+                }
             }
         }
-        if (keyQuery != null && valueQuery != null) {
-            return new BooleanQuery.Builder()
-                    .add(keyQuery, BooleanClause.Occur.FILTER)
-                    .add(valueQuery, BooleanClause.Occur.MUST)
-                    .build();
+        if (n == 0) {
+            return new MatchAllDocsQuery();
         }
-        if (keyQuery != null) {
-            return keyQuery;
-        }
-        if (valueQuery != null) {
-            return valueQuery;
-        }
-        return new MatchAllDocsQuery();
+        return builder.build();
     }
 
     protected Sort buildSearchSort(String prefix, String keyword) {

@@ -198,7 +198,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
 
     private CharSequence probeContentType(Path file) throws IOException {
         String contentType = Files.probeContentType(file);
-        if (contentType == null ) {
+        if (contentType == null) {
             if (file.toString().endsWith(".md")) {
                 return TEXT_MARKDOWN;
             }
