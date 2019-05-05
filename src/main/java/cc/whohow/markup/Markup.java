@@ -1,6 +1,8 @@
 package cc.whohow.markup;
 
 import cc.whohow.markup.impl.*;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.hankcs.lucene.HanLPTokenizerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -41,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -70,6 +74,8 @@ public class Markup implements AutoCloseable {
     // markdown
     private final Parser parser;
     private final HtmlRenderer renderer;
+    // metadata
+    private final Cache<String, Metadata> metadataCache;
     // updater
     private final MarkupUpdater updater;
     //
@@ -101,6 +107,11 @@ public class Markup implements AutoCloseable {
                     .build();
             // executor
             executor = Executors.newScheduledThreadPool(1);
+            // metadata
+            metadataCache = Caffeine.newBuilder()
+                    .executor(executor)
+                    .maximumSize(1024)
+                    .build();
             // updater
             updater = new MarkupUpdater(this, executor);
         } catch (Throwable e) {
@@ -172,36 +183,36 @@ public class Markup implements AutoCloseable {
                 toMarkdown(searcher.doc(scoreDocs[0].doc));
     }
 
-    public SearchResult<Markdown> search(SearchCursor c) throws IOException {
+    public SearchResult<Markdown> search(SearchCursor cursor) throws IOException {
         IndexSearcher searcher = this.searcher;
 
-        SearchCursor nc = new SearchCursor();
-        nc.setPrefix(c.getPrefix());
-        nc.setKeyword(c.getKeyword());
-        nc.setCount(c.getCount());
-        nc.setOffset(c.getOffset() + c.getCount());
+        SearchCursor next = new SearchCursor();
+        next.setPrefix(cursor.getPrefix());
+        next.setKeyword(cursor.getKeyword());
+        next.setCount(cursor.getCount());
+        next.setOffset(cursor.getOffset() + cursor.getCount());
 
-        SearchResult<Markdown> r = new SearchResult<>();
-        Query q = buildSearchQuery(c.getPrefix(), c.getKeyword());
-        Sort s = buildSearchSort(c.getPrefix(), c.getKeyword());
-        log.debug("query {} {} {}", q, c.getKey(), c.getCount());
+        SearchResult<Markdown> result = new SearchResult<>();
+        Query query = buildSearchQuery(cursor.getPrefix(), cursor.getKeyword());
+        Sort sort = buildSearchSort(cursor.getPrefix(), cursor.getKeyword());
+        log.debug("query {} {} {}", query, cursor.getKey(), cursor.getCount());
 
-        ScoreDoc[] scoreDocs = searcher.search(q, nc.getOffset(), s).scoreDocs;
+        ScoreDoc[] scoreDocs = searcher.search(query, next.getOffset(), sort).scoreDocs;
         LinkedList<Markdown> list = new LinkedList<>();
-        for (int i = scoreDocs.length - 1; i >= Integer.max(scoreDocs.length - c.getCount(), 0); i--) {
+        for (int i = scoreDocs.length - 1; i >= Integer.max(scoreDocs.length - cursor.getCount(), 0); i--) {
             Document document = searcher.doc(scoreDocs[i].doc);
             String key = document.get(KEY);
-            if (key.equals(c.getKey())) {
+            if (key.equals(cursor.getKey())) {
                 break;
             }
             list.addFirst(toMarkdown(document));
         }
-        r.setList(list);
+        result.setList(list);
         if (!list.isEmpty()) {
-            nc.setKey(list.getLast().getKey());
-            r.setCursor(nc.toString());
+            next.setKey(list.getLast().getKey());
+            result.setCursor(next.toString());
         }
-        return r;
+        return result;
     }
 
     protected Query buildSearchQuery(String prefix, String keyword) throws IOException {
@@ -244,6 +255,30 @@ public class Markup implements AutoCloseable {
         return repo.resolve(path);
     }
 
+    public Metadata getMetadata(String key) {
+        return metadataCache.get(key, this::readMetadata);
+    }
+
+    private Metadata readMetadata(String key) {
+        try {
+            Path path = resolve(key);
+            if (Files.exists(path)) {
+                BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+                String contentType = Files.probeContentType(path);
+                if (contentType == null) {
+                    if (key.toLowerCase().endsWith(".md")) {
+                        contentType = "text/markdown;charset=utf-8";
+                    }
+                }
+                return new Metadata(attrs.size(), new Date(attrs.lastModifiedTime().toMillis()), contentType);
+            } else {
+                return Metadata.NOT_FOUND;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public void update() {
         updater.run();
     }
@@ -270,11 +305,13 @@ public class Markup implements AutoCloseable {
                 git = Git.open(repo.toFile());
             }
         }
+        metadataCache.invalidateAll();
         if (git == null) {
             gitClone();
         } else {
             gitPull();
         }
+        metadataCache.invalidateAll();
     }
 
     private void gitClone() throws Exception {

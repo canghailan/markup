@@ -2,11 +2,13 @@ package cc.whohow.markup.ws;
 
 import cc.whohow.markup.Markdown;
 import cc.whohow.markup.Markup;
+import cc.whohow.markup.impl.Metadata;
 import cc.whohow.markup.impl.SearchCursor;
 import cc.whohow.markup.impl.SearchResult;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -17,10 +19,13 @@ import io.netty.handler.codec.http.*;
 import io.netty.util.AsciiString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.util.IO;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.UncheckedIOException;
+import java.net.URLConnection;
+import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
@@ -29,15 +34,25 @@ import java.util.*;
 public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
     private static final Logger log = LogManager.getLogger();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final CharSequence TEXT_MARKDOWN = new AsciiString("text/markdown;charset=utf-8");
     private static final CharSequence CACHE_CONTROL_VALUE = new AsciiString("no-cache,max-age=86400,must-revalidate");
     private static final String SEARCH = "/.s";
     private static final String TABLE_OF_CONTENT = "/.toc";
     private static final String UPDATE = "/.updater";
+    private static final Date DATE = new Date();
+    private static final Map<String, ByteBuffer> FILES = new HashMap<>();
 
     static {
         OBJECT_MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        try {
+            for (String file : Arrays.asList("/index.html", "/index.js")) {
+                ByteBuffer buffer = IO.readWholeStream(
+                        WebServiceHandler.class.getResourceAsStream(file), 4 * 1024);
+                FILES.put(file, buffer);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private final Markup markup;
@@ -101,25 +116,39 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     }
 
     private void send(ChannelHandlerContext context, FullHttpRequest request, String path) throws IOException {
-        Path file = markup.resolve(path.substring(1));
-        long lastModified = Files.getLastModifiedTime(file).toMillis();
-        if (isNotModified(request, lastModified)) {
+        String key = path.substring(1);
+        Metadata metadata = markup.getMetadata(key);
+        if (metadata == Metadata.NOT_FOUND) {
+            ByteBuffer bytes = FILES.get(path);
+            if (bytes != null) {
+                send(context, Unpooled.wrappedBuffer(bytes),
+                        HttpHeaderNames.DATE, DateFormatter.format(new Date()),
+                        HttpHeaderNames.CONTENT_LENGTH, bytes.remaining(),
+                        HttpHeaderNames.CONTENT_TYPE, URLConnection.getFileNameMap().getContentTypeFor(path),
+                        HttpHeaderNames.LAST_MODIFIED, DateFormatter.format(DATE),
+                        HttpHeaderNames.CACHE_CONTROL, CACHE_CONTROL_VALUE);
+                return;
+            } else {
+                send(context, HttpResponseStatus.NOT_FOUND);
+                return;
+            }
+        }
+        if (isNotModified(request, metadata.getLastModified().getTime())) {
             send(context, HttpResponseStatus.NOT_MODIFIED);
             return;
         }
 
-        long contentLength = Files.size(file);
-        CharSequence contentType = probeContentType(file);
+        Path file = markup.resolve(key);
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
         response.headers().set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
-        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, contentLength);
-        if (contentType != null) {
-            response.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType);
+        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, metadata.getSize());
+        if (metadata.getContentType() != null) {
+            response.headers().set(HttpHeaderNames.CONTENT_TYPE, metadata.getContentType());
         }
-        response.headers().set(HttpHeaderNames.LAST_MODIFIED, DateFormatter.format(new Date(lastModified)));
+        response.headers().set(HttpHeaderNames.LAST_MODIFIED, DateFormatter.format(metadata.getLastModified()));
         response.headers().set(HttpHeaderNames.CACHE_CONTROL, CACHE_CONTROL_VALUE);
         context.write(response);
-        context.write(new DefaultFileRegion(file.toFile(), 0, contentLength));
+        context.write(new DefaultFileRegion(file.toFile(), 0, metadata.getSize()));
         context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
 
@@ -152,14 +181,11 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         SearchResult<Markdown> searchResult = markup.search(searchCursor);
         byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(searchResult);
 
-        HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        response.headers().set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
-        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, bytes.length);
-        response.headers().set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-        response.headers().set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
-        context.write(response);
-        context.write(Unpooled.wrappedBuffer(bytes));
-        context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+        send(context, Unpooled.wrappedBuffer(bytes),
+                HttpHeaderNames.DATE, DateFormatter.format(new Date()),
+                HttpHeaderNames.CONTENT_LENGTH, bytes.length,
+                HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON,
+                HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
     }
 
     private void update(ChannelHandlerContext context) throws IOException {
@@ -173,13 +199,22 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         result.put("timestamp", new Date());
         byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(result);
 
+        send(context, Unpooled.wrappedBuffer(bytes),
+                HttpHeaderNames.DATE, DateFormatter.format(new Date()),
+                HttpHeaderNames.CONTENT_LENGTH, bytes.length,
+                HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON,
+                HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
+    }
+
+    private void send(ChannelHandlerContext context, ByteBuf buffer, Object... headers) {
         HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        response.headers().set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
-        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, bytes.length);
-        response.headers().set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON);
-        response.headers().set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
+        for (int i = 0; i < headers.length; i += 2) {
+            if (headers[i + 1] != null) {
+                response.headers().set((CharSequence) headers[i], headers[i + 1]);
+            }
+        }
         context.write(response);
-        context.write(Unpooled.wrappedBuffer(bytes));
+        context.write(buffer);
         context.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
 
@@ -194,16 +229,6 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     private boolean isNotModified(FullHttpRequest request, long lastModified) {
         return request.headers().getTimeMillis(HttpHeaderNames.IF_MODIFIED_SINCE, 0) / 1000 ==
                 lastModified / 1000;
-    }
-
-    private CharSequence probeContentType(Path file) throws IOException {
-        String contentType = Files.probeContentType(file);
-        if (contentType == null) {
-            if (file.toString().endsWith(".md")) {
-                return TEXT_MARKDOWN;
-            }
-        }
-        return contentType;
     }
 
     private Optional<String> getFirst(Map<String, List<String>> parameters, String key) {

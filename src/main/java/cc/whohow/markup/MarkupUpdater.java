@@ -24,14 +24,16 @@ public class MarkupUpdater implements Runnable, AutoCloseable {
 
     @Override
     public void run() {
-        try {
-            update();
-        } catch (RuntimeException e) {
-            log.error("update", e);
-            throw e;
-        } catch (Exception e) {
-            log.error("update", e);
-            throw new UndeclaredThrowableException(e);
+        synchronized (MarkupUpdater.class) {
+            try {
+                update();
+            } catch (RuntimeException e) {
+                log.error("update", e);
+                throw e;
+            } catch (Exception e) {
+                log.error("update", e);
+                throw new UndeclaredThrowableException(e);
+            }
         }
     }
 
