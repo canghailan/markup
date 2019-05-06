@@ -2,6 +2,9 @@ package cc.whohow.markup;
 
 import java.util.Date;
 
+/**
+ * Markdown 文件
+ */
 public class Markdown {
     private String key;
     private String content;

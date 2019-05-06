@@ -1,6 +1,6 @@
 package cc.whohow.markup;
 
-import cc.whohow.markup.ws.Application;
+import cc.whohow.markup.ws.Server;
 import org.junit.Test;
 
 import java.nio.file.Paths;
@@ -13,7 +13,7 @@ public class TestMarkup {
 
     @Test
     public void test() throws Exception {
-        MarkupConfiguration configuration = Application.getConfiguration();
+        MarkupConfiguration configuration = Server.getConfiguration();
         Markup markup = new Markup(configuration);
         markup.update();
 

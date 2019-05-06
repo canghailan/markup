@@ -8,6 +8,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Git库文件遍历器，忽略.git目录
+ */
 public class GitRepositoryFileVisitor implements FileVisitor<Path> {
     private List<Path> files = new ArrayList<>();
 

@@ -3,6 +3,9 @@ package cc.whohow.markup.impl;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+/**
+ * 搜索分页标识符
+ */
 public class SearchCursor {
     private String prefix;
     private String keyword;

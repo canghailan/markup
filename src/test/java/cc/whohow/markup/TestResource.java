@@ -7,7 +7,7 @@ import java.net.URL;
 public class TestResource {
     @Test
     public void test() {
-        URL index = Markup.class.getResource("/index.html");
+        URL index = Markup.class.getResource("/static/index.html");
         System.out.println(index);
     }
 }

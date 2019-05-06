@@ -2,6 +2,9 @@ package cc.whohow.markup.impl;
 
 import java.util.List;
 
+/**
+ * 搜索结果
+ */
 public class SearchResult<T> {
     private List<T> list;
     private String cursor;

@@ -2,7 +2,13 @@ package cc.whohow.markup.impl;
 
 import java.util.Date;
 
+/**
+ * 文件元数据
+ */
 public class Metadata {
+    /**
+     * 不存在的文件
+     */
     public static final Metadata NOT_FOUND = new Metadata(0, new Date(0), null);
 
     private long size;

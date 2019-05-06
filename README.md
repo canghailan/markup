@@ -5,8 +5,30 @@
 ## 预览
 ![screenshot](doc/screenshot.jpg)
 
+## 配置
+### 1. 文件配置
+```yaml
+git: https://github.com/canghailan/notes.git
+port: 80 # 可选，默认80
+```
+
+### 2. 环境变量配置
+```
+MARKUP_GIT
+MARKUP_PORT
+```
+
+### 3. 参数配置
+TODO
+
+### 4. 启动控制台配置
+```shell
+git:
+```
+输入后将会自动保存到 ```markup.yml```
+
 ## 目录结构
-对目录结构没有特殊要求，.开头文档无法通过HTTP访问，首页index.html可自行定制
+对Git仓库目录结构没有特殊要求，.开头文档无法通过HTTP访问，Git仓库没有index.html将会使用默认首页
 ```shell
 markup.jar # 单一执行文件
 markup.yml # 配置文件
@@ -29,7 +51,7 @@ GET /
 GET /index.html
 ```
 
-### 文件
+### 静态文件
 与版本库文件路径一致
 ```http
 GET /**/*.*
@@ -50,7 +72,7 @@ GET /.toc
 搜索响应：
 * list 搜索数据
 * cursor 分页标识，null表示已到最后一页
-#### 首次请求
+#### 第一次请求
 ```http
 GET /.s?p=&q=&n=
 
@@ -59,7 +81,7 @@ GET /.s?p=&q=&n=
   "cursor": "CURSOR"
 }
 ```
-#### 下一页
+#### 翻页
 ```http
 GET /.s?c=CURSOR
 
