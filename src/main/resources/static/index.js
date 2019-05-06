@@ -106,7 +106,7 @@ var app = new Vue({
                 self.list = r.data.list;
                 self.cursor = r.data.cursor;
                 self.mode = 'search';
-            })
+            });
         }
     }
 });
