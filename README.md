@@ -66,6 +66,7 @@ git:
 ```http
 GET /
 ```
+或者
 ```http
 GET /index.html
 ```
@@ -117,6 +118,9 @@ GET /.s?c=CURSOR
 ### 更新，支持Webhook
 ```http
 GET /.updater
+```
+或者
+```http
 POST /.updater
 ```
 
