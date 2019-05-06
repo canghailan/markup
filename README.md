@@ -27,6 +27,9 @@ services:
 ```
 
 
+启动后，通过 http://localhost 即可访问
+
+
 
 ## 配置
 ### 方式1. ```markup.yml```文件配置
