@@ -1,7 +1,5 @@
 package cc.whohow.markup.impl;
 
-import cc.whohow.markup.ws.Server;
-
 import javax.activation.MimetypesFileTypeMap;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,7 +16,7 @@ public class ContentTypes {
     private static final Map<String, String> CONTENT_TYPES_WITH_CHARSET = new ConcurrentHashMap<>();
 
     static {
-        try (InputStream stream = Server.class.getResourceAsStream("/mime.types")) {
+        try (InputStream stream = ContentTypes.class.getResourceAsStream("/mime.types")) {
             MimetypesFileTypeMap.setDefaultFileTypeMap(new MimetypesFileTypeMap(stream));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

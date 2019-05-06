@@ -206,7 +206,6 @@ public class Markup implements AutoCloseable {
         next.setCount(cursor.getCount());
         next.setOffset(cursor.getOffset() + cursor.getCount());
 
-        SearchResult<Markdown> result = new SearchResult<>();
         Query query = buildSearchQuery(cursor.getPrefix(), cursor.getKeyword());
         Sort sort = buildSearchSort(cursor.getPrefix(), cursor.getKeyword());
         log.debug("query {} {} {}", query, cursor.getKey(), cursor.getCount());
@@ -221,6 +220,8 @@ public class Markup implements AutoCloseable {
             }
             list.addFirst(toMarkdown(document));
         }
+
+        SearchResult<Markdown> result = new SearchResult<>();
         result.setList(list);
         if (!list.isEmpty()) {
             next.setKey(list.getLast().getKey());
