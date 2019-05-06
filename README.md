@@ -1,54 +1,51 @@
 # Markup - 微型Markdown文档服务器
 
-所有文档都缓存在内存中，针对少量文档（博客、接口文档）场景优化
+Markdown静态文档服务器，提供内容目录、搜索功能
 
-## 预览
-![screenshot](doc/screenshot.jpg)
+所有文档都缓存在内存中，针对少量文档（博客、接口文档）场景优化
 
 
 ## 部署
-### 1. 下载markup.jar，命令行启动
+### 方式1. 下载[markup.jar](https://github.com/canghailan/markup/releases/download/v1.0.0/markup-1.0.0.jar)，命令行启动
 ```shell
 java -jar markup.jar
 # 根据提示输入
 git: https://github.com/canghailan/notes.git # 文档Git库地址
 ```
 
-### 2. docker
+### 方式2. docker
 ```yaml
 version: '2'
 
 services:
   markup:
     image: registry.cn-hangzhou.aliyuncs.com/yitong/markup
-    restart: always
     environment:
         - 'MARKUP_GIT=https://github.com/canghailan/notes.git' # 文档Git库地址
-    hostname: markup.docker
-
 ```
 
 
 ## 配置
-### 1. 文件配置
+### 方式1. 文件配置
 ```yaml
 git: https://github.com/canghailan/notes.git
 port: 80 # 可选，默认80
 ```
 
-### 2. 环境变量配置
+### 方式2. 环境变量配置
 ```
 MARKUP_GIT
 MARKUP_PORT
 ```
 
-### 3. 启动控制台配置
+### 方式3. 交互配置
 ```shell
+java -jar markup.jar
 git:
 ```
 输入后将会自动保存到 ```markup.yml```
 
-### 4. 参数配置
+### 方式4. 命令行参数配置
 TODO
 
 
@@ -79,7 +76,7 @@ GET /.toc
 * n 分页大小
 * c 分页标识
 
-搜索响应：
+搜索结果：
 * list 搜索数据
 * cursor 分页标识，null表示已到最后一页
 #### 第一次请求
@@ -101,19 +98,24 @@ GET /.s?c=CURSOR
 }
 ```
 
-### 更新
+### 更新，支持Webhook
 ```http
 GET /.updater
+POST /.updater
 ```
 
 
 ## 依赖
 * [jgit](https://github.com/eclipse/jgit) - 从远程Git仓库读取文件
-* [commonmark](https://github.com/atlassian/commonmark-java) - 将Markdown转为HTML
+* [commonmark](https://github.com/atlassian/commonmark-java) - Markdown转HTML
 * [lucene](https://github.com/apache/lucene-solr) - 文档存储、搜索
 * [HanLP](https://github.com/hankcs/HanLP)、[hanlp-lucene-plugin](https://github.com/hankcs/hanlp-lucene-plugin) - 中文分词、拼音
-* [jackson](https://github.com/FasterXML/jackson) - 配置文件、接口数据
+* [jackson](https://github.com/FasterXML/jackson) - YAML配置文件、HTTP接口
 * [netty](https://github.com/netty/netty) - HTTP服务器
 
 ## License
 MIT
+
+
+## 预览
+![screenshot](doc/screenshot.jpg)
