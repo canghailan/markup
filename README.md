@@ -11,7 +11,7 @@ Markdown静态文档服务器，提供内容目录、搜索功能
 ```shell
 java -jar markup.jar
 # 根据提示输入
-git: https://github.com/canghailan/notes.git # 文档Git库地址
+git: https://github.com/canghailan/notes.git # Git仓库地址
 ```
 
 
@@ -23,11 +23,11 @@ services:
   markup:
     image: registry.cn-hangzhou.aliyuncs.com/yitong/markup
     environment:
-        - 'MARKUP_GIT=https://github.com/canghailan/notes.git' # 文档Git库地址
+      - 'MARKUP_GIT=https://github.com/canghailan/notes.git' # Git仓库地址
 ```
 
 
-启动后，通过 http://localhost 即可访问
+启动后，通过 http://localhost 即可访问，默认UI仅提供文件浏览、搜索功能，建议在Git仓库中提供index.html覆盖默认UI
 
 
 
@@ -58,12 +58,7 @@ MARKUP_PORT
 java -jar markup.jar
 git:
 ```
-输入后将会自动保存到 ```markup.yml```
-
-
-### 方式4. 命令行参数配置
-TODO
-
+启动后将会自动保存到 ```markup.yml```
 
 
 ## 接口
