@@ -20,7 +20,7 @@ ENV JAVA_OPTS=-Xmx128m
 ENV MARKUP_GIT=
 ENV MARKUP_PORT=80
 
-COPY --from=build-stage /workspace/target/*.jar /app/app.jar
+COPY --from=build-stage /workspace/target/*-with-dependencies.jar /app/app.jar
 
 CMD java -jar $JAVA_OPTS /app/app.jar
 
