@@ -36,7 +36,8 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     private static final String TABLE_OF_CONTENT = "/.toc";
     private static final String UPDATE = "/.updater";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final CharSequence CACHE_CONTROL_VALUE = new AsciiString("no-cache,max-age=86400,must-revalidate");
+    private static final CharSequence APPLICATION_JSON = new AsciiString("application/json;charset=utf-8");
+    private static final CharSequence DEFAULT_CACHE_CONTROL_VALUE = new AsciiString("no-cache,max-age=86400,must-revalidate");
     private static final ClasspathStatic STATIC = new ClasspathStatic();
 
     static {
@@ -108,7 +109,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         send(context, Unpooled.wrappedBuffer(bytes),
                 HttpHeaderNames.DATE, DateFormatter.format(new Date()),
                 HttpHeaderNames.CONTENT_LENGTH, bytes.length,
-                HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON,
+                HttpHeaderNames.CONTENT_TYPE, APPLICATION_JSON,
                 HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
     }
 
@@ -133,7 +134,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         send(context, Unpooled.wrappedBuffer(bytes),
                 HttpHeaderNames.DATE, DateFormatter.format(new Date()),
                 HttpHeaderNames.CONTENT_LENGTH, bytes.length,
-                HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON,
+                HttpHeaderNames.CONTENT_TYPE, APPLICATION_JSON,
                 HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
     }
 
@@ -155,7 +156,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
         send(context, Unpooled.wrappedBuffer(bytes),
                 HttpHeaderNames.DATE, DateFormatter.format(new Date()),
                 HttpHeaderNames.CONTENT_LENGTH, bytes.length,
-                HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_JSON,
+                HttpHeaderNames.CONTENT_TYPE, APPLICATION_JSON,
                 HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
     }
 
@@ -182,7 +183,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
                     HttpHeaderNames.CONTENT_LENGTH, metadata.getSize(),
                     HttpHeaderNames.CONTENT_TYPE, metadata.getContentType(),
                     HttpHeaderNames.LAST_MODIFIED, DateFormatter.format(metadata.getLastModified()),
-                    HttpHeaderNames.CACHE_CONTROL, CACHE_CONTROL_VALUE);
+                    HttpHeaderNames.CACHE_CONTROL, DEFAULT_CACHE_CONTROL_VALUE);
             return;
         } else if (isNotModified(request, metadata.getLastModified().getTime())) {
             send(context, HttpResponseStatus.NOT_MODIFIED);
@@ -194,7 +195,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
                 HttpHeaderNames.CONTENT_LENGTH, metadata.getSize(),
                 HttpHeaderNames.CONTENT_TYPE, metadata.getContentType(),
                 HttpHeaderNames.LAST_MODIFIED, DateFormatter.format(metadata.getLastModified()),
-                HttpHeaderNames.CACHE_CONTROL, CACHE_CONTROL_VALUE);
+                HttpHeaderNames.CACHE_CONTROL, DEFAULT_CACHE_CONTROL_VALUE);
     }
 
     private void send(ChannelHandlerContext context, HttpResponseStatus status) {
