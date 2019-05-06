@@ -5,6 +5,7 @@ Markdown静态文档服务器，提供内容目录、搜索功能
 所有文档都缓存在内存中，针对少量文档（博客、接口文档）场景优化
 
 
+
 ## 部署
 ### 方式1. 下载[markup.jar](https://github.com/canghailan/markup/releases/download/v1.0.0/markup-1.0.0.jar)，命令行启动
 ```shell
@@ -12,6 +13,7 @@ java -jar markup.jar
 # 根据提示输入
 git: https://github.com/canghailan/notes.git # 文档Git库地址
 ```
+
 
 ### 方式2. docker
 ```yaml
@@ -25,18 +27,28 @@ services:
 ```
 
 
+
 ## 配置
-### 方式1. 文件配置
+### 方式1. ```markup.yml```文件配置
+配置文件与markup.jar放在同一目录下
+```
+markup.jar
+markup.yml
+```
+
+配置项：
 ```yaml
 git: https://github.com/canghailan/notes.git
 port: 80 # 可选，默认80
 ```
+
 
 ### 方式2. 环境变量配置
 ```
 MARKUP_GIT
 MARKUP_PORT
 ```
+
 
 ### 方式3. 交互配置
 ```shell
@@ -45,8 +57,10 @@ git:
 ```
 输入后将会自动保存到 ```markup.yml```
 
+
 ### 方式4. 命令行参数配置
 TODO
+
 
 
 ## 接口
@@ -58,16 +72,19 @@ GET /
 GET /index.html
 ```
 
-### 静态文件
+
+### 文件
 与版本库文件路径一致
 ```http
 GET /**/*.*
 ```
 
+
 ### 目录（Table Of Content）
 ```http
 GET /.toc
 ```
+
 
 ### 全文搜索
 搜索参数：
@@ -98,11 +115,13 @@ GET /.s?c=CURSOR
 }
 ```
 
+
 ### 更新，支持Webhook
 ```http
 GET /.updater
 POST /.updater
 ```
+
 
 
 ## 依赖
@@ -113,8 +132,11 @@ POST /.updater
 * [jackson](https://github.com/FasterXML/jackson) - YAML配置文件、HTTP接口
 * [netty](https://github.com/netty/netty) - HTTP服务器
 
+
+
 ## License
 MIT
+
 
 
 ## 预览
