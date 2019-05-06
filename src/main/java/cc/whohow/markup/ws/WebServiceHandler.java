@@ -89,7 +89,11 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
                     }
                 }
             }
-            send(context, request, path);
+            if (HttpMethod.GET.equals(request.method())) {
+                send(context, request, path);
+            } else {
+                send(context, HttpResponseStatus.METHOD_NOT_ALLOWED);
+            }
         } catch (NoSuchFileException | FileNotFoundException e) {
             log.error("NotFound", e);
             send(context, HttpResponseStatus.NOT_FOUND);
@@ -221,7 +225,7 @@ public class WebServiceHandler extends SimpleChannelInboundHandler<FullHttpReque
     }
 
     private boolean isMethodNotAllowed(FullHttpRequest request) {
-        return !HttpMethod.GET.equals(request.method());
+        return !HttpMethod.GET.equals(request.method()) && !HttpMethod.POST.equals(request.method());
     }
 
     private boolean isNotModified(FullHttpRequest request, long lastModified) {
