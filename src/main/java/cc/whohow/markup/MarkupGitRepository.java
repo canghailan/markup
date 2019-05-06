@@ -127,9 +127,6 @@ public class MarkupGitRepository implements AutoCloseable {
      * 比较2次提交
      */
     public List<DiffEntry> gitDiff(RevCommit oldCommit, RevCommit newCommit) throws IOException {
-        if (oldCommit == null) {
-            oldCommit = getFirstCommit();
-        }
         if (newCommit.equals(oldCommit)) {
             return Collections.emptyList();
         }
