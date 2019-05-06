@@ -5,6 +5,30 @@
 ## 预览
 ![screenshot](doc/screenshot.jpg)
 
+
+## 部署
+### 1. 下载markup.jar，命令行启动
+```shell
+java -jar markup.jar
+# 根据提示输入
+git: https://github.com/canghailan/notes.git # 文档Git库地址
+```
+
+### 2. docker
+```yaml
+version: '2'
+
+services:
+  markup:
+    image: registry.cn-hangzhou.aliyuncs.com/yitong/markup
+    restart: always
+    environment:
+        - 'MARKUP_GIT=https://github.com/canghailan/notes.git' # 文档Git库地址
+    hostname: markup.docker
+
+```
+
+
 ## 配置
 ### 1. 文件配置
 ```yaml
@@ -18,29 +42,15 @@ MARKUP_GIT
 MARKUP_PORT
 ```
 
-### 3. 参数配置
-TODO
-
-### 4. 启动控制台配置
+### 3. 启动控制台配置
 ```shell
 git:
 ```
 输入后将会自动保存到 ```markup.yml```
 
-## 目录结构
-对Git仓库目录结构没有特殊要求，.开头文档无法通过HTTP访问，Git仓库没有index.html将会使用默认首页
-```shell
-markup.jar # 单一执行文件
-markup.yml # 配置文件
-[repo] # Git文档库
-.git
-index.html
-[DIRECTORY]
-    *.md
-    *.jpg
-*.md 
-...
-```
+### 4. 参数配置
+TODO
+
 
 ## 接口
 ### 首页
