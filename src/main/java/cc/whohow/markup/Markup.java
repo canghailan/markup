@@ -272,7 +272,7 @@ public class Markup implements AutoCloseable {
 
     public boolean accept(String key) {
         // 只索引md文件
-        return key.endsWith(".md");
+        return key != null && key.endsWith(".md");
     }
 
     public synchronized void update() throws Exception {
@@ -292,7 +292,7 @@ public class Markup implements AutoCloseable {
                     break;
                 }
                 case DELETE: {
-                    if (accept(diffEntry.getNewPath())) {
+                    if (accept(diffEntry.getOldPath())) {
                         deleteKeys.add(diffEntry.getOldPath());
                     }
                     break;
@@ -301,7 +301,7 @@ public class Markup implements AutoCloseable {
                     if (accept(diffEntry.getNewPath())) {
                         indexKeys.add(diffEntry.getNewPath());
                     }
-                    if (accept(diffEntry.getNewPath())) {
+                    if (accept(diffEntry.getOldPath())) {
                         deleteKeys.add(diffEntry.getOldPath());
                     }
                     break;
