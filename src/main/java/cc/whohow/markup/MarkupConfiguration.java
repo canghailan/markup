@@ -2,7 +2,7 @@ package cc.whohow.markup;
 
 public class MarkupConfiguration {
     private String git;
-    private int port = 80;
+    private int port;
 
     public String getGit() {
         return git;
